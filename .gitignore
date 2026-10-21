@@ -1,0 +1,4 @@
+# archivos locales que no deben ir a git
+*.log
+.DS_Store
+Thumbs.db

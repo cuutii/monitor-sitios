@@ -1,0 +1,23 @@
+name: Monitor de Sitios
+
+# Corre cada 6 horas, y también se puede disparar a mano desde la
+# pestaña Actions del repo. Si algo falla, GitHub te manda un mail.
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # 00:00, 06:00, 12:00, 18:00 UTC
+  workflow_dispatch:          # botón "Run workflow" en la web
+
+permissions:
+  contents: read   # solo lee, no escribe nada
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5        # si algo se cuelga, se corta solo
+
+    steps:
+      - name: Bajar el repo
+        uses: actions/checkout@v4
+
+      - name: Correr el monitor
+        run: bash monitor-sitios.sh

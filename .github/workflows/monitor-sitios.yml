@@ -7,8 +7,11 @@ on:
     - cron: "0 */6 * * *"   # 00:00, 06:00, 12:00, 18:00 UTC
   workflow_dispatch:          # botón "Run workflow" en la web
 
+# contents: write solo para poder guardar el resultado de cada
+# corrida (estado.json + historial.jsonl) en el propio repo, que
+# es lo que alimenta el dashboard. Nada más se escribe.
 permissions:
-  contents: read   # solo lee, no escribe nada
+  contents: write
 
 jobs:
   monitor:
@@ -20,4 +23,36 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Correr el monitor
-        run: bash monitor-sitios.sh
+        run: ESCRIBIR_JSON=1 bash monitor-sitios.sh
+        # El exit code del script (0 = ok, 1 = fallo) no detiene
+        # el paso siguiente: usamos if: always() para guardar el
+        # resultado aunque haya fallo, que es justo lo que queremos
+        # registrar en el historial.
+
+      - name: Guardar resultado en el historial
+        if: always()
+        run: |
+          if [ -f estado.json ]; then
+            # una línea por corrida, al final del histórico
+            cat estado.json | tr -d '\n' >> historial.jsonl
+            echo "" >> historial.jsonl
+            # el histórico no necesita crecer sin límite: nos
+            # quedamos con las últimas 500 corridas
+            tail -n 500 historial.jsonl > historial.tmp
+            mv historial.tmp historial.jsonl
+          else
+            echo "No hay estado.json que guardar"
+          fi
+
+      - name: Commitear el estado
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add estado.json historial.jsonl
+          if git diff --cached --quiet; then
+            echo "Nada que commitear"
+          else
+            git commit -m "estado: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git push
+          fi

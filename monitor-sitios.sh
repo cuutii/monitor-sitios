@@ -68,6 +68,14 @@ fallos=0
 avisos=0
 md_sitios=""
 
+# Datos por sitio, para el JSON del dashboard.
+# Se guardan en paralelo: un array por campo.
+json_sitios=()
+json_codigos=()
+json_tiempos=()
+json_estudio=()
+json_info=()
+
 printf "%b\n" "${GRIS}============================================================${FIN}"
 printf "%b\n" "  MONITOR DE SITIOS - $(date -u '+%Y-%m-%d %H:%M UTC')"
 printf "%b\n" "${GRIS}============================================================${FIN}"
@@ -160,6 +168,15 @@ for sitio in "${SITIOS[@]}"; do
   fi
 
   md_sitios+="| $sitio | $estado_emoji $estado_txt | ${tiempo_form}s | $est_md | $info_md |\n"
+
+  # ---- datos para el JSON del dashboard ----
+  json_sitios+=("$sitio")
+  json_codigos+=("$codigo")
+  json_tiempos+=("$tiempo")
+  # publicados/info llevan comillas y backticks; para el JSON van
+  # como texto plano simple. Se limpia lo mínimo indispensable.
+  json_estudio+=("$(echo "$publicados" | tr -d '`' | sed 's/^ *//')")
+  json_info+=("$(echo "$info" | tr -d '`' | sed 's/^ *//')")
 done
 
 # ---------- resumen ----------
@@ -181,6 +198,50 @@ printf "%b\n" "${GRIS}----------------------------------------------------------
 # ---------- resumen para GitHub Actions ----------
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   printf "%b" "$md_sitios" >> "$GITHUB_STEP_SUMMARY"
+fi
+
+# ---------- JSON para el dashboard (solo si se pide) ----------
+# ESCRIBIR_JSON=1 ./monitor-sitios.sh   -> escribe estado.json
+# Por defecto no escribe nada: así el comportamiento local
+# de siempre no cambia ni por accidente.
+if [ "${ESCRIBIR_JSON:-0}" = "1" ]; then
+  destino="${JSON_SALIDA:-estado.json}"
+  fecha=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+
+  # Escapar para JSON: barra invertilla y comilla doble.
+  # Los nombres de sitio y de archivo son nuestros, no hay
+  # entradas raras, pero el escape se hace igual por si acaso.
+  esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+  {
+    printf '{\n'
+    printf '  "fecha": "%s",\n' "$fecha"
+    printf '  "fallos": %d,\n' "$fallos"
+    printf '  "avisos": %d,\n' "$avisos"
+    printf '  "sitios": [\n'
+    n=${#json_sitios[@]}
+    for ((i = 0; i < n; i++)); do
+      coma=","
+      if [ "$i" -eq $((n - 1)) ]; then coma=""; fi
+      printf '    { "nombre": "%s", "codigo": "%s", "tiempo": %s, "estudio": "%s", "info": "%s" }%s\n' \
+        "$(esc "${json_sitios[$i]}")" \
+        "$(esc "${json_codigos[$i]}")" \
+        "${json_tiempos[$i]}" \
+        "$(esc "${json_estudio[$i]}")" \
+        "$(esc "${json_info[$i]}")" \
+        "$coma"
+    done
+    printf '  ]\n'
+    printf '}\n'
+  } > "$destino"
+
+  # Si no se pudo escribir, se avisa pero NO se rompe: el
+  # monitor ya hizo su trabajo de verificar.
+  if [ -f "$destino" ]; then
+    printf "%b\n" "  📝 JSON escrito en: $destino"
+  else
+    printf "%b\n" "  ⚠ No se pudo escribir $destino (¿permisos?)"
+  fi
 fi
 
 if [ "$fallos" -gt 0 ]; then

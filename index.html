@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitor de Sitios — cuutii</title>
+<style>
+  :root {
+    --fondo: rgb(13, 17, 23);
+    --panel: rgb(22, 27, 34);
+    --borde: rgb(48, 54, 61);
+    --texto: rgb(230, 237, 243);
+    --apagado: rgb(139, 148, 158);
+    --verde: rgb(63, 185, 80);
+    --rojo: rgb(248, 81, 73);
+    --amarillo: rgb(210, 153, 34);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    padding: 2rem 1rem;
+  }
+  .contenedor { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+  .subtitulo { color: var(--apagado); font-size: .9rem; margin-bottom: 1.5rem; }
+  .subtitulo a { color: var(--apagado); }
+
+  .tarjeta {
+    background: var(--panel);
+    border: 1px solid var(--borde);
+    border-radius: 6px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  .tarjeta h2 { font-size: 1rem; margin-bottom: .75rem; color: var(--texto); }
+
+  /* ---- resumen general ---- */
+  .resumen { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .caja {
+    flex: 1;
+    min-width: 140px;
+    text-align: center;
+    padding: .75rem;
+    border-radius: 6px;
+    border: 1px solid var(--borde);
+  }
+  .caja .numero { font-size: 1.75rem; font-weight: 700; }
+  .caja .etiqueta { font-size: .8rem; color: var(--apagado); }
+  .caja.ok .numero { color: var(--verde); }
+  .caja.error .numero { color: var(--rojo); }
+  .caja.aviso .numero { color: var(--amarillo); }
+
+  /* ---- tabla de sitios ---- */
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { text-align: left; padding: .5rem .5rem; border-bottom: 1px solid var(--borde); }
+  th { color: var(--apagado); font-weight: 600; font-size: .8rem; }
+  tr:last-child td { border-bottom: none; }
+  .punto {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-right: .5rem;
+  }
+  .punto.ok { background: var(--verde); }
+  .punto.error { background: var(--rojo); }
+  .codigo { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--apagado); }
+  .aviso-txt { color: var(--amarillo); font-size: .8rem; }
+
+  /* ---- canvas del histórico ---- */
+  canvas { width: 100%; height: 200px; display: block; }
+  .leyenda { display: flex; gap: 1.25rem; margin-top: .5rem; font-size: .8rem; color: var(--apagado); flex-wrap: wrap; }
+  .leyenda span::before {
+    content: "";
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 2px;
+    margin-right: .35rem;
+    vertical-align: middle;
+  }
+  .leyenda .l-ok::before { background: var(--verde); }
+  .leyenda .l-fallo::before { background: var(--rojo); }
+
+  .pie { color: var(--apagado); font-size: .8rem; margin-top: 1.5rem; text-align: center; }
+  .cargando { color: var(--apagado); text-align: center; padding: 2rem; }
+</style>
+</head>
+<body>
+<div class="contenedor">
+  <h1>🛰 Monitor de Sitios</h1>
+  <p class="subtitulo">
+    Estado de los 7 sitios de
+    <a href="https://github.com/cuutii">cuutii</a> en GitHub Pages ·
+    actualiza cada 6 horas
+  </p>
+
+  <div id="principal" class="cargando">Cargando estado…</div>
+
+  <div class="tarjeta">
+    <h2>Histórico de corridas</h2>
+    <canvas id="grafico" width="860" height="200"></canvas>
+    <div class="leyenda">
+      <span class="l-ok">todo arriba</span>
+      <span class="l-fallo">algún fallo</span>
+    </div>
+  </div>
+
+  <p class="pie">
+    Datos de <code>estado.json</code> y <code>historial.jsonl</code> ·
+    <a href="https://github.com/cuutii/monitor-sitios">código del monitor</a>
+  </p>
+</div>
+
+<script>
+// Carga los dos archivos que escribe la acción. Si el histórico
+// no existe todavía (primera corrida), el gráfico queda vacío en
+// vez de romperse.
+async function cargar(ruta) {
+  const r = await fetch(ruta, { cache: "no-store" });
+  if (!r.ok) throw new Error(ruta + " -> " + r.status);
+  return r.text();
+}
+
+function pintarEstado(d) {
+  const arriba = d.sitios.filter(s => s.codigo === "200").length;
+  const total = d.sitios.length;
+  const todoOk = d.fallos === 0;
+
+  const filas = d.sitios.map(s => {
+    const ok = s.codigo === "200";
+    const avisos = [];
+    if (s.estudio) avisos.push("archivo de estudio: " + s.estudio);
+    if (s.info) avisos.push("informativo: " + s.info);
+    const avisoHtml = avisos.length
+      ? '<div class="aviso-txt">' + avisos.join(" · ") + "</div>"
+      : "";
+    return "<tr>" +
+      '<td><span class="punto ' + (ok ? "ok" : "error") + '"></span>' + s.nombre + "</td>" +
+      '<td class="codigo">' + s.codigo + "</td>" +
+      "<td>" + (ok ? s.tiempo.toFixed(2) + " s" : "—") + "</td>" +
+      "<td>" + avisoHtml + "</td>" +
+      "</tr>";
+  }).join("");
+
+  document.getElementById("principal").innerHTML =
+    '<div class="tarjeta">' +
+      '<h2>Estado actual — ' + d.fecha.replace("T", " ").replace("Z", " UTC") + "</h2>" +
+      '<div class="resumen">' +
+        '<div class="caja ' + (todoOk ? "ok" : "error") + '">' +
+          '<div class="numero">' + (todoOk ? "✅" : "🔴") + "</div>" +
+          '<div class="etiqueta">' + (todoOk ? "todo arriba" : d.fallos + " fallo(s)") + "</div>" +
+        "</div>" +
+        '<div class="caja ok"><div class="numero">' + arriba + "/" + total +
+          '</div><div class="etiqueta">sitios responden 200</div></div>' +
+        '<div class="caja aviso"><div class="numero">' + d.avisos +
+          '</div><div class="etiqueta">aviso(s) informativo(s)</div></div>' +
+      "</div>" +
+      '<table><thead><tr><th>Sitio</th><th>Código</th><th>Tiempo</th><th>Notas</th></tr></thead>' +
+      "<tbody>" + filas + "</tbody></table>" +
+    "</div>";
+}
+
+function pintarHistorial(txt) {
+  const lineas = txt.split("\n").map(l => l.trim()).filter(Boolean);
+  const corridas = [];
+  for (const l of lineas) {
+    try { corridas.push(JSON.parse(l)); } catch (_) { /* línea corrupta: se saltea */ }
+  }
+  if (!corridas.length) return;
+
+  const canvas = document.getElementById("grafico");
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  const padIzq = 30, padAbajo = 24, padArriba = 8;
+  ctx.clearRect(0, 0, W, H);
+
+  // escala de tiempos: 0 hasta el máximo redondeado
+  const maxT = Math.max(...corridas.map(c =>
+    Math.max(...c.sitios.map(s => s.tiempo || 0))), 1);
+  const altoUtil = H - padAbajo - padArriba;
+  const anchoBarra = (W - padIzq) / corridas.length;
+
+  // eje Y (tiempo en segundos)
+  ctx.fillStyle = "rgb(139,148,158)";
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "right";
+  for (let v = 0; v <= maxT; v += Math.ceil(maxT / 4)) {
+    const y = padArriba + altoUtil - (v / maxT) * altoUtil;
+    ctx.fillText(v + "s", padIzq - 4, y + 3);
+    ctx.strokeStyle = "rgb(48,54,61)";
+    ctx.beginPath(); ctx.moveTo(padIzq, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // barras: color según si hubo fallo
+  corridas.forEach((c, i) => {
+    const x = padIzq + i * anchoBarra;
+    const tiempoMax = Math.max(...c.sitios.map(s => s.tiempo || 0));
+    const h = (tiempoMax / maxT) * altoUtil;
+    const huboFallo = c.fallos > 0;
+    ctx.fillStyle = huboFallo ? "rgb(248,81,73)" : "rgb(63,185,80)";
+    ctx.globalAlpha = corridas.length > 60 ? 0.55 : 0.9;
+    ctx.fillRect(x + 0.5, padArriba + altoUtil - h, Math.max(anchoBarra - 1, 1), h);
+    ctx.globalAlpha = 1;
+  });
+
+  // etiqueta X: primera y última corrida
+  ctx.fillStyle = "rgb(139,148,158)";
+  ctx.textAlign = "left";
+  ctx.fillText(corridas[0].fecha.slice(5, 10), padIzq, H - 6);
+  ctx.textAlign = "right";
+  ctx.fillText(corridas[corridas.length - 1].fecha.slice(5, 10), W, H - 6);
+}
+
+(async () => {
+  try {
+    const [estadoTxt, histTxt] = await Promise.all([
+      cargar("estado.json"),
+      cargar("historial.jsonl").catch(() => "") // puede no existir aún
+    ]);
+    pintarEstado(JSON.parse(estadoTxt));
+    if (histTxt) pintarHistorial(histTxt);
+  } catch (e) {
+    document.getElementById("principal").innerHTML =
+      '<div class="tarjeta">No se pudo cargar el estado: ' + e.message +
+      "<br>¿Corrió la acción por primera vez?</div>";
+  }
+})();
+</script>
+</body>
+</html>

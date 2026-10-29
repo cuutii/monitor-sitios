@@ -1,14 +1,14 @@
 {
-  "fecha": "2026-10-29T17:39:57Z",
+  "fecha": "2026-10-29T22:04:56Z",
   "fallos": 0,
   "avisos": 3,
   "sitios": [
-    { "nombre": "gestor-contrasenas", "codigo": "200", "tiempo": 0.194501, "estudio": "", "info": "servidor-prueba.ps1" },
-    { "nombre": "perito-map", "codigo": "200", "tiempo": 0.111066, "estudio": "", "info": "servidor-prueba.ps1" },
-    { "nombre": "generador-contrasenas", "codigo": "200", "tiempo": 0.120181, "estudio": "", "info": "" },
-    { "nombre": "Explore-Calafate", "codigo": "200", "tiempo": 0.145888, "estudio": "", "info": "servidor-prueba.ps1" },
-    { "nombre": "Portfolio-Maximo", "codigo": "200", "tiempo": 0.131410, "estudio": "", "info": "" },
-    { "nombre": "Fernanda", "codigo": "200", "tiempo": 0.093772, "estudio": "", "info": "" },
-    { "nombre": "Progresivo", "codigo": "200", "tiempo": 0.114251, "estudio": "", "info": "" }
+    { "nombre": "gestor-contrasenas", "codigo": "200", "tiempo": 0.170733, "estudio": "", "info": "servidor-prueba.ps1" },
+    { "nombre": "perito-map", "codigo": "200", "tiempo": 0.133633, "estudio": "", "info": "servidor-prueba.ps1" },
+    { "nombre": "generador-contrasenas", "codigo": "200", "tiempo": 0.109456, "estudio": "", "info": "" },
+    { "nombre": "Explore-Calafate", "codigo": "200", "tiempo": 0.108668, "estudio": "", "info": "servidor-prueba.ps1" },
+    { "nombre": "Portfolio-Maximo", "codigo": "200", "tiempo": 0.093850, "estudio": "", "info": "" },
+    { "nombre": "Fernanda", "codigo": "200", "tiempo": 0.109044, "estudio": "", "info": "" },
+    { "nombre": "Progresivo", "codigo": "200", "tiempo": 0.098483, "estudio": "", "info": "" }
   ]
 }
